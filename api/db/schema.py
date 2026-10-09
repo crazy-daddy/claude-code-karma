@@ -10,7 +10,7 @@ import sqlite3
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 21
 
 SCHEMA_SQL = """
 -- Schema versioning
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     cache_creation_tokens INTEGER DEFAULT 0,
     cache_read_tokens INTEGER DEFAULT 0,
     total_cost REAL DEFAULT 0,
+    subagent_cost REAL DEFAULT 0,
     initial_prompt TEXT,
     git_branch TEXT,
     models_used TEXT,
@@ -790,6 +791,24 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             # Guard: minimal test fixtures may not have a sessions table.
             if "sessions" in existing:
                 conn.execute("UPDATE sessions SET needs_shell_cron_reindex = 1")
+
+        if current_version < 20:
+            logger.info("Migrating → v20: re-index costs (per-response usage dedup, current pricing)")
+            has_sessions = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sessions'"
+            ).fetchone()
+            if has_sessions:
+                conn.execute("UPDATE sessions SET jsonl_mtime = jsonl_mtime - 1")
+
+        if current_version < 21:
+            logger.info("Migrating → v21: add sessions.subagent_cost for project/global totals")
+            sessions_cols = {
+                r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()
+            }
+            if sessions_cols and "subagent_cost" not in sessions_cols:
+                conn.execute("ALTER TABLE sessions ADD COLUMN subagent_cost REAL DEFAULT 0")
+            if sessions_cols:
+                conn.execute("UPDATE sessions SET jsonl_mtime = jsonl_mtime - 1")
 
     # Record version
     conn.execute(

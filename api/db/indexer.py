@@ -379,6 +379,7 @@ def _index_session(
 
     # Extract all metadata
     usage = session.get_usage_summary()
+    _, subagent_cost = session.get_subagent_totals()
     tools_used = session.get_tools_used()
     skills_used = session.get_skills_used()
     skills_mentioned = session.get_skills_mentioned()
@@ -410,7 +411,7 @@ def _index_session(
             uuid, slug, project_encoded_name, project_path,
             start_time, end_time, message_count, duration_seconds,
             input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
-            total_cost, initial_prompt, git_branch, models_used,
+            total_cost, subagent_cost, initial_prompt, git_branch, models_used,
             session_titles, is_continuation_marker, was_compacted,
             compaction_count, file_snapshot_count, subagent_count,
             jsonl_mtime, jsonl_size, session_source, source_encoded_name,
@@ -419,7 +420,7 @@ def _index_session(
             ?, ?, ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
             ?, ?, ?,
             ?, ?, ?,
             ?, ?, ?, ?,
@@ -440,6 +441,7 @@ def _index_session(
             usage.cache_creation_input_tokens,
             usage.cache_read_input_tokens,
             session.get_total_cost(),
+            subagent_cost,
             initial_prompt,
             git_branches[0] if git_branches else None,
             json.dumps(models_used) if models_used else None,
@@ -556,7 +558,7 @@ def _index_session(
                         subagent_type,
                         usage.total_input,
                         usage.output_tokens,
-                        usage.calculate_cost(subagent.get_primary_model()),
+                        subagent.get_total_cost(),
                         duration,
                         subagent.start_time.isoformat() if subagent.start_time else None,
                     ),
